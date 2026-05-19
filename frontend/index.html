@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capital Sense Lead Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div x-data="app()" x-init="checkOllama()" class="container mx-auto p-6">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Capital Sense Lead Generator</h1>
+            <p class="text-gray-600">AI-powered business financing lead pipeline · 100% free stack</p>
+            <div class="mt-2">
+                <span class="px-2 py-1 rounded text-sm" :class="ollamaStatus === 'connected' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" x-text="'Ollama: ' + ollamaStatus"></span>
+            </div>
+        </header>
+
+        <!-- Idle State -->
+        <div x-show="state === 'idle'" class="bg-white p-6 rounded shadow">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <input type="number" x-model="targetCount" placeholder="Target Leads" class="border p-2 rounded">
+                <input type="number" x-model="minScore" placeholder="Min Score" class="border p-2 rounded">
+            </div>
+            <button @click="startPipeline()" class="bg-blue-600 text-white px-4 py-2 rounded">Start Pipeline</button>
+        </div>
+
+        <!-- Running State -->
+        <div x-show="state === 'running'" class="space-y-4">
+            <h2 class="text-xl font-bold" x-text="'Run: ' + runId.slice(0,8) + '...'"></h2>
+            <div class="bg-white p-4 rounded shadow h-64 overflow-y-auto font-mono text-sm">
+                <template x-for="msg in messages" :key="msg.timestamp">
+                    <p x-text="msg.message"></p>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        function app() {
+            return {
+                state: 'idle',
+                runId: null,
+                messages: [],
+                ollamaStatus: 'unknown',
+                targetCount: 200,
+                minScore: 60,
+
+                async checkOllama() {
+                    try {
+                        const res = await fetch(`${API_BASE}/health`);
+                        const data = await res.json();
+                        this.ollamaStatus = data.ollama;
+                    } catch(e) { this.ollamaStatus = 'unreachable'; }
+                },
+
+                async startPipeline() {
+                    const res = await fetch(`${API_BASE}/api/pipeline/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ target_count: this.targetCount, min_score: this.minScore })
+                    });
+                    const data = await res.json();
+                    this.runId = data.run_id;
+                    this.state = 'running';
+                    this.connectSSE(this.runId);
+                },
+
+                connectSSE(runId) {
+                    const es = new EventSource(`${API_BASE}/api/pipeline/stream?run_id=${runId}`);
+                    es.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        this.messages.unshift(data);
+                        if (this.messages.length > 20) this.messages.pop();
+                    };
+                }
+            }
+        }
+    </script>
+</body>
+</html>
