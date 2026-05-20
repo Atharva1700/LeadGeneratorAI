@@ -1,6 +1,5 @@
 """
-prompts.py — All LLM prompt templates for the Capital Sense pipeline.
-Used with local Ollama / Llama 3.1 model.
+prompts.py — All LLM prompt templates. Used with local Ollama / Llama 3.1.
 """
 
 EXTRACTION_PROMPT = """You are a business contact data extractor. Extract business owner contact information from the HTML below.
